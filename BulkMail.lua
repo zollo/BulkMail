@@ -2,7 +2,7 @@ BulkMail = LibStub("AceAddon-3.0"):NewAddon("BulkMail", "AceConsole-3.0", "AceEv
 
 local mod, self, BulkMail = BulkMail, BulkMail, BulkMail
 
-local VERSION = " v7.0.0"
+local VERSION =  " @project-version@"
 local LibStub = LibStub
 
 local L        = LibStub("AceLocale-3.0"):GetLocale("BulkMail", false)
