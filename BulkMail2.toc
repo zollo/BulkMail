@@ -2,13 +2,14 @@
 ## Interface-Classic: 11403
 ## Interface-BCC: 20504
 ## Interface-Cata: 40402
+## Interface-Mists: 50500
 ## X-Curse-Project-ID: 13586
 ## X-WoWI-ID: 18819
 ## X-Wago-ID: VBNBrzNx
 ## Title: Bulk Mail 
 ## Notes: Bulk mail sending made really easy
 ## Notes-ruRU: BulkMail - отсылку почты делает на много легче
-## Version: 9.0.5
+## Version: @project-version@
 ## Author: NeoTron
 ## X-Credits: hyperactiveChipmunk, Kemayo, Kergoth, Bigzero, Tekkub, Mikk (icon)
 ## X-Thanks: hyperactiveChipmunk for making the addon and letting me (NeoTron) take it over
