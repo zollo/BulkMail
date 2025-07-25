@@ -180,6 +180,13 @@ end
 --[[----------------------------------------------------------------------------
 Local Processing
 ------------------------------------------------------------------------------]]
+
+-- utility method to get item id.
+local function linkToId(itemLink)
+    return type(item) == 'number' and item or tonumber(strmatch(itemLink, "|H[^:]+:(%d+)"))
+end
+
+
 -- Bag iterator, shamelessly stolen from PeriodicTable-2.0 (written by Tekkub)
 local iterbag, iterslot
 local function iter()
@@ -267,7 +274,7 @@ end
 local function rulesCacheDest(item)
     if not item then return end
     local rdest
-    local itemID = type(item) == 'number' and item or tonumber(strmatch(item, "item:(%d+)"))
+    local itemID = linkToId(item)
     if not itemID then return end
     for _, xID in ipairs(globalExclude.items) do if itemID == xID then return end end
     for _, xset in ipairs(globalExclude.pt31Sets) do
@@ -277,17 +284,29 @@ local function rulesCacheDest(item)
     local quality = select(3, GetItemInfo(itemID))
     local  equippable = IsEquippableItem(itemID)
 
-    if (equippable and quality < self.db.char.minItemLevel)
-            or (not equippable and quality < self.db.char.minItemLevelMisc) then
+    if quality and ((equippable and quality < self.db.char.minItemLevel)
+            or (not equippable and quality < self.db.char.minItemLevelMisc)) then
         return nil
     end
     local itype, isubtype = select(6, GetItemInfo(itemID)) -- old string based lookup
     local iclass, isubclass = select(12, GetItemInfo(itemID)) -- new class id based lookup
+
+    if C_PetJournal and not iclass then
+        local name, icon, petType, creatureID, sourceText, description, isWild, canBattle, isTradeable, isUnique, obtainable, displayID, speciesID = C_PetJournal.GetPetInfoByItemID(itemID)
+        if name then
+            iclass, isubclass = speciesID, creatureID
+            itype, isubtype = petType, name
+            print(iclass, isubclass, itype, isubtype)
+        end
+    end
+    if not itype or not iclass then
+        return nil
+    end
     for dest, rules in pairs(rulesCache) do
         local canddest
         if string.lower(dest) ~= string.lower(UnitName('player')) and (rules[itemID] or
-                (rules[itype] and rules[itype][isubtype]) or
-                (rules[iclass] and rules[iclass][isubclass])) then
+                (itype and rules[itype] and rules[itype][isubtype]) or
+                (iclass and rules[iclass] and rules[iclass][isubclass])) then
             canddest = dest
         end
         if canddest then
@@ -470,11 +489,11 @@ local function bulkToggleBagItem(bag, slot, itemLink)
     itemLink = itemLink or GetContainerItemLink(bag, slot)
 
     if not itemLink then return end
-    local itemId = tonumber(strmatch(itemLink, "item:(%d+)"))
+    local itemId = linkToId(itemLink)
     local shouldRemove =  sendCache and sendCache[bag] and sendCache[bag][slot]
     mod:Print(fmt(L["Attempting to %s all %s."], shouldRemove and L["remove"] or L["add"], itemLink))
     for addlBag, addlSlot, item in bagIter() do
-        if tonumber(strmatch(item, "item:(%d+)")) == itemId then
+        if linkToId(item) == itemId then
             if shouldRemove then
                 sendCacheRemove(addlBag, addlSlot, true)
             elseif not sendCacheAdd(addlBag, addlSlot, true) then
@@ -1545,19 +1564,29 @@ function mod:ShowSendQueueGUI()
     tooltip:SetCell(y, 1, L["Item Send Queue"], tooltip:GetFont(), "CENTER", 2)
 
     tooltip:AddLine(" ")
-
     if sendCache and next(sendCache) then
-        local itemLink, itemText, texture, qty
+        local itemLink, itemText, texture, qty, info
         for bag, slots in pairs(sendCache) do
             for slot in pairs(slots) do
                 itemLink = GetContainerItemLink(bag, slot)
                 if itemLink then
-                    itemText = GetItemInfo(itemLink)
-                    texture, qty = GetContainerItemInfo(bag, slot)
+                    if C_Container then
+                        info = C_Container.GetContainerItemInfo(bag, slot)
+                        itemText = info.itemName
+                        texture = info.iconFileID
+                        qty = info.stackCount
+                    else
+                        if itemLink then
+                            itemText = GetItemInfo(itemLink)
+                            texture, qty = GetContainerItemInfo(bag, slot)
+                        end
+                    end
                     if qty and qty > 1 then
                         itemText = fmt("|T%s:18|t |cffffd200%s (%d)|r", texture, itemText, qty)
-                    else
+                    elseif itemText then
                         itemText = fmt("|T%s:18|t |cffffd200%s|r", texture, itemText)
+                    else
+                        itemText = itemLink -- shouldn't happen
                     end
                     local y = _addIndentedCell(tooltip, itemText, 5, function(self)
                         onSendQueueItemSelect(bag, slot)
@@ -1580,7 +1609,6 @@ function mod:ShowSendQueueGUI()
     else
         _addIndentedCell(tooltip, color(L["No items selected"], "ffd200"), 5)
     end
-
 
     tooltip:AddLine(" ")
     local y = tooltip:AddLine();
