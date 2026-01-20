@@ -608,6 +608,9 @@ local function _convertAce2ToAce3Realm(realm)
 end
 
 local function _convertBulkMail2DB()
+    if not BulkMail2DB then
+        return
+    end
     mod:Print("Converting BulkMail 2 configuration...")
     local startPos
     BulkMail3DB = new()
