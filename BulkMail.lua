@@ -90,7 +90,7 @@ local type = type
 local unpack = unpack
 local NUM_LE_ITEM_CLASSES = _G.NUM_LE_ITEM_CLASSES or _G.NUM_LE_ITEM_CLASSS or 19
 local auctionItemClasses, sendCache, destCache, reverseDestCache, destSendCache, rulesCache, autoSendRules, globalExclude -- tables
-local cacheLock, sendDest, numItems, rulesAltered, confirmedDestToRemove  -- variables
+local cacheLock, sendDest, numItems, rulesAltered  -- variables
 
 local GetContainerItemInfo = GetContainerItemInfo
 local GetContainerItemLink = GetContainerItemLink
@@ -1324,8 +1324,7 @@ local function _toggleEditHeader(frame, dest)
     menuFrame = menuFrame and menuFrame:Release()
 
     if IsAltKeyDown() and dest ~= "globalExclude" then
-        confirmedDestToRemove = dest
-        StaticPopup_Show('BULKMAIL_REMOVE_DESTINATION')
+        StaticPopup_Show('BULKMAIL_REMOVE_DESTINATION', nil, nil, dest)
     else
         shown[dest] = not shown[dest]
     end
@@ -1681,13 +1680,11 @@ StaticPopupDialogs['BULKMAIL_REMOVE_DESTINATION'] = {
     text = L["BulkMail - Confirm removal of destination"],
     button1 = L["Accept"], button2 = L["Cancel"],
     OnAccept = function(self)
-        mod:RemoveDestination(confirmedDestToRemove)
-        mod:RefreshEditTooltipGUI()
-        confirmedDestToRemove = nil
-        rulesAltered = true
-    end,
-    OnHide = function(self)
-        confirmedDestToRemove = nil
+        if self.data then
+            mod:RemoveDestination(self.data)
+            mod:RefreshEditTooltipGUI()
+            rulesAltered = true
+        end
     end,
     timeout = 0, exclusive = 1, hideOnEscape = 1,
 }
