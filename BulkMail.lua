@@ -16,6 +16,7 @@ local ACD      = LibStub("AceConfigDialog-3.0")
 local ACONS    = LibStub("AceConsole-3.0")
 local DB       = LibStub("AceDB-3.0")
 local LDB      = LibStub("LibDataBroker-1.1", true)
+local MagicUtil = LibStub("LibMagicUtil-1.0")
 
 BulkMail.L = L
 
@@ -31,7 +32,6 @@ local tinsert = table.insert
 local tremove = table.remove
 local tconcat = table.concat
 local fmt = string.format
-local ChatFrame1EditBox = ChatFrame1EditBox
 local ClickSendMailItemButton = ClickSendMailItemButton
 
 local GetItemInfo = GetItemInfo
@@ -884,11 +884,39 @@ function mod:MAIL_SHOW()
             mod:SendMailMailButton_OnClick(MailFrameTab2)
         end
     end
+    -- Watch for mail frame changes (e.g. TSM toggling between its UI and the default)
+    mod._lastMailFrame = nil
+    if not mod._mailFrameWatcher then
+        mod._mailFrameWatcher = self:ScheduleRepeatingTimer("CheckMailFrameChanged", 0.2)
+    end
+end
+
+function mod:CheckMailFrameChanged()
+    local mailFrame, isTSM = MagicUtil:GetMailFrame()
+    if mailFrame ~= mod._lastMailFrame then
+        mod._lastMailFrame = mailFrame
+        if isTSM then
+            -- TSM active: always show the send queue alongside inbox
+            self:ShowSendQueueGUI()
+        else
+            -- Switching to normal UI: show send queue only if on Send tab
+            if SendMailFrame and SendMailFrame:IsShown() then
+                self:ShowSendQueueGUI()
+            elseif mod.sendQueueTooltip then
+                self:HideSendQueueGUI()
+            end
+        end
+    end
 end
 
 function mod:MAIL_CLOSED()
     if mailIsVisible then
         mailIsVisible = nil
+        if mod._mailFrameWatcher then
+            self:CancelTimer(mod._mailFrameWatcher)
+            mod._mailFrameWatcher = nil
+        end
+        mod._lastMailFrame = nil
         self:UnhookAll()
         sendCacheCleanup()
         self:HideSendQueueGUI()
@@ -1557,9 +1585,22 @@ function mod:ShowSendQueueGUI()
         tooltip:SetMovable(true)
         tooltip:SetColumnLayout(2, "LEFT", "RIGHT")
         self.sendQueueTooltip = tooltip
-        tooltip:SetPoint("LEFT", MailFrame, "RIGHT", -5, 40)
     else
         tooltip:Clear()
+    end
+    -- Always re-anchor to the current mail frame (may change when TSM toggles)
+    -- When TSM is active and inbox is showing, anchor to the right of the inbox
+    local mailFrame, isTSM = MagicUtil:GetMailFrame()
+    tooltip:ClearAllPoints()
+    local inboxGUI = BulkMailInbox and BulkMailInbox.inboxGUI
+    local inboxToolbar = BulkMailInbox and BulkMailInbox._toolbar
+    if isTSM and inboxGUI and inboxGUI:IsShown() then
+        local anchor = inboxToolbar and inboxToolbar:IsShown() and inboxToolbar or inboxGUI
+        tooltip:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 5, 0)
+    elseif isTSM then
+        tooltip:SetPoint("TOPLEFT", mailFrame, "TOPRIGHT", 5, 0)
+    else
+        tooltip:SetPoint("TOPLEFT", MailFrame, "TOPRIGHT", 5, 0)
     end
 
     local y = tooltip:AddHeader();
@@ -1637,10 +1678,12 @@ function mod:ShowSendQueueGUI()
     y = tooltip:AddLine(L["Alt-Right Click item to add/remove."])
     y = tooltip:AddLine(L["Alt-Left Click item to bulk add/remove."])
     tooltip:SetFrameStrata("FULLSCREEN")
-    -- set max height to be 80% of the screen height
-    tooltip:UpdateScrolling(UIParent:GetHeight() / tooltip:GetScale() * 0.8)
     tooltip:SetClampedToScreen(true)
     tooltip:Show()
+    -- UpdateScrolling needs valid bounds, so call after Show()
+    if tooltip:GetTop() then
+        tooltip:UpdateScrolling(UIParent:GetHeight() / tooltip:GetScale() * 0.8)
+    end
 end
 
 
