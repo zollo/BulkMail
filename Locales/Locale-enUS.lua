@@ -31,7 +31,14 @@ L["Click Include/Exclude headers to modify a ruleset.  Alt-Click destinations an
 L["Close"] = true
 L["Default destination"] = true
 L["Disable AutoSend queue auto-filling for this character."] = true
+L["Disable automatic anchoring to the mail frame. The window will remember its position when dragged."] = true
 L["Drop items here for Sending"] = true
+L["Free Position"] = true
+L["Window Size"] = true
+L["How the window height is determined. Match sets height to mail frame. Max limits height to mail frame. Free sizes to content."] = true
+L["Free"] = true
+L["Match Mail Frame"] = true
+L["Max Mail Frame"] = true
 L["Edit AutoSend definitions."] = true
 L["Edit Destinations"] = true
 L["Enter a name in the To: field or set a default destination with |cff00ffaa/bulkmail defaultdest|r."] = true

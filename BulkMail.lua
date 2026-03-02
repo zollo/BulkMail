@@ -657,6 +657,11 @@ function mod:OnInitialize()
                 ['*'] = {}
             },
         },
+        profile = {
+            sizeMode = "free",
+            freePosition = false,
+            savedPos = nil,
+        },
     }, "Default")
     self.db.char.minItemLevel= self.db.char.minItemLevel or 1
     self.db.char.minItemLevelMisc = self.db.char.minItemLevelMisc or 1
@@ -753,12 +758,14 @@ function mod:OnInitialize()
                 desc = L["Disable AutoSend queue auto-filling for this character."],
                 get = function() return self.db.char.isSink end,
                 set = function(args,v) self.db.char.isSink = v end,
+                order = 4000,
             },
             attachmulti = {
                 name = L["Attach multiple items"], type = 'toggle',
                 desc = L["Attach as many items as possible per mail."],
                 get = function() return self.db.char.attachMulti end,
                 set = function(args, v) self.db.char.attachMulti = v end,
+                order = 4100,
             },
             attachItemLevelMin = {
                 name = L["Min Matched Equipped Quality"], type = 'select',
@@ -773,6 +780,34 @@ function mod:OnInitialize()
                 values = itemQualities,
                 get = function() return self.db.char.minItemLevelMisc  end,
                 set = function(args, v) self.db.char.minItemLevelMisc = v end,
+            },
+            sizeMode = {
+                name = L["Window Size"],
+                type = 'select',
+                desc = L["How the window height is determined. Match sets height to mail frame. Max limits height to mail frame. Free sizes to content."],
+                values = {
+                    free = L["Free"],
+                    match = L["Match Mail Frame"],
+                    max = L["Max Mail Frame"],
+                },
+                get = function() return self.db.profile.sizeMode end,
+                set = function(_, v) self.db.profile.sizeMode = v mod:RefreshSendQueueGUI() end,
+                disabled = function() return self.db.profile.freePosition end,
+                order = 2500,
+            },
+            freePosition = {
+                name = L["Free Position"],
+                type = 'toggle',
+                desc = L["Disable automatic anchoring to the mail frame. The window will remember its position when dragged."],
+                get = function() return self.db.profile.freePosition end,
+                set = function(_, v)
+                    self.db.profile.freePosition = v
+                    if not v then
+                        self.db.profile.savedPos = nil
+                    end
+                    mod:RefreshSendQueueGUI()
+                end,
+                order = 3000,
             },
         },
     }
@@ -1580,7 +1615,13 @@ function mod:ShowSendQueueGUI()
         tooltip = QTIP:Acquire("BulkMail3SendQueueTooltip")
         tooltip:EnableMouse(true)
         tooltip:SetScript("OnDragStart", tooltip.StartMoving)
-        tooltip:SetScript("OnDragStop", tooltip.StopMovingOrSizing)
+        tooltip:SetScript("OnDragStop", function()
+            tooltip:StopMovingOrSizing()
+            if mod.db.profile.freePosition then
+                local point, _, relPoint, x, y = tooltip:GetPoint()
+                mod.db.profile.savedPos = { point = point, relPoint = relPoint, x = x, y = y }
+            end
+        end)
         tooltip:RegisterForDrag("LeftButton")
         tooltip:SetMovable(true)
         tooltip:SetColumnLayout(2, "LEFT", "RIGHT")
@@ -1588,19 +1629,26 @@ function mod:ShowSendQueueGUI()
     else
         tooltip:Clear()
     end
-    -- Always re-anchor to the current mail frame (may change when TSM toggles)
-    -- When TSM is active and inbox is showing, anchor to the right of the inbox
-    local mailFrame, isTSM = MagicUtil:GetMailFrame()
-    tooltip:ClearAllPoints()
-    local inboxGUI = BulkMailInbox and BulkMailInbox.inboxGUI
-    local inboxToolbar = BulkMailInbox and BulkMailInbox._toolbar
-    if isTSM and inboxGUI and inboxGUI:IsShown() then
-        local anchor = inboxToolbar and inboxToolbar:IsShown() and inboxToolbar or inboxGUI
-        tooltip:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 5, 0)
-    elseif isTSM then
-        tooltip:SetPoint("TOPLEFT", mailFrame, "TOPRIGHT", 5, 0)
+    -- Position the send queue
+    if mod.db.profile.freePosition and mod.db.profile.savedPos then
+        local saved = mod.db.profile.savedPos
+        tooltip:ClearAllPoints()
+        tooltip:SetPoint(saved.point, UIParent, saved.relPoint, saved.x, saved.y)
     else
-        tooltip:SetPoint("TOPLEFT", MailFrame, "TOPRIGHT", 5, 0)
+        -- Always re-anchor to the current mail frame (may change when TSM toggles)
+        -- When TSM is active and inbox is showing, anchor to the right of the inbox
+        local mailFrame, isTSM = MagicUtil:GetMailFrame()
+        tooltip:ClearAllPoints()
+        local inboxGUI = BulkMailInbox and BulkMailInbox.inboxGUI
+        local inboxToolbar = BulkMailInbox and BulkMailInbox._toolbar
+        if isTSM and inboxGUI and inboxGUI:IsShown() then
+            local anchor = inboxToolbar and inboxToolbar:IsShown() and inboxToolbar or inboxGUI
+            tooltip:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 5, 0)
+        elseif isTSM then
+            tooltip:SetPoint("TOPLEFT", mailFrame, "TOPRIGHT", 5, 0)
+        else
+            tooltip:SetPoint("TOPLEFT", MailFrame, "TOPRIGHT", 5, 0)
+        end
     end
 
     local y = tooltip:AddHeader();
@@ -1654,6 +1702,7 @@ function mod:ShowSendQueueGUI()
     end
 
     tooltip:AddLine(" ")
+
     local y = tooltip:AddLine();
     tooltip:SetCell(y, 1, color(L["Drop items here for Sending"], "ffd200"), tooltip:GetFont(), "CENTER", 2)
     tooltip:SetLineScript(y, "OnReceiveDrag", onDropClick)
@@ -1682,7 +1731,24 @@ function mod:ShowSendQueueGUI()
     tooltip:Show()
     -- UpdateScrolling needs valid bounds, so call after Show()
     if tooltip:GetTop() then
-        tooltip:UpdateScrolling(UIParent:GetHeight() / tooltip:GetScale() * 0.8)
+        local sizeMode = not mod.db.profile.freePosition and mod.db.profile.sizeMode or "free"
+        local mailFrameH
+        if sizeMode == "match" or sizeMode == "max" then
+            local mailFrame = MagicUtil:GetMailFrame()
+            if mailFrame and mailFrame:GetHeight() and mailFrame:GetHeight() > 0 then
+                mailFrameH = mailFrame:GetHeight() / tooltip:GetScale()
+            end
+        end
+
+        if mailFrameH and (sizeMode == "match" or sizeMode == "max") then
+            tooltip:UpdateScrolling(mailFrameH)
+        else
+            tooltip:UpdateScrolling(UIParent:GetHeight() / tooltip:GetScale() * 0.8)
+        end
+
+        if sizeMode == "match" and mailFrameH then
+            tooltip:SetHeight(mailFrameH)
+        end
     end
 end
 
