@@ -932,6 +932,8 @@ function mod:CheckMailFrameChanged()
         mod._lastMailFrame = mailFrame
         if isTSM then
             -- TSM active: always show the send queue alongside inbox
+            rulesCacheBuild()
+            sendCacheBuild(SendMailNameEditBox:GetText())
             self:ShowSendQueueGUI()
         else
             -- Switching to normal UI: show send queue only if on Send tab
