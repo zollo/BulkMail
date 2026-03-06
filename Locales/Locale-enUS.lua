@@ -76,4 +76,5 @@ L["Min Matched Quality"] = true
 L["The minimum quality level matched for automatic destinations."] = true
 L["Min Matched Equipped Quality"] = true
 L["The minimum quality level matched for automatic destinations for equippable items / gear."] = true
+L["To"] = true
 

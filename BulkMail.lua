@@ -546,7 +546,18 @@ end
 local function sendCacheBuild(dest)
     if not cacheLock then
         sendCacheCleanup(true)
-        if BulkMail.db.char.isSink or dest ~= '' and not destCache[dest] then
+        local destLower = dest and dest:lower()
+        -- Check destCache case-insensitively
+        local destHasRules = false
+        if dest ~= '' then
+            for d in pairs(destCache) do
+                if d:lower() == destLower then
+                    destHasRules = true
+                    break
+                end
+            end
+        end
+        if BulkMail.db.char.isSink or dest ~= '' and not destHasRules then
             -- no need to check for an item in the autosend list if this character is a sink or if the destination string doesn't have any rules set
             mod:RefreshSendQueueGUI()
             return
@@ -555,7 +566,7 @@ local function sendCacheBuild(dest)
         for bag, slot, item in bagIter() do
             local target = rulesCacheDest(item)
             if target then
-                if dest == '' or dest == target then
+                if dest == '' or target:lower() == destLower then
                     sendCacheAdd(bag, slot, true)
                 end
             end
@@ -1031,6 +1042,15 @@ end
 
 function mod:SendMailMailButton_OnClick(frame, a1)
     cacheLock = true
+    -- Commit recipient bar if it has uncommitted text
+    if mod._recipientBar and mod._recipientBar.editBox then
+        local barText = mod._recipientBar.editBox:GetText()
+        if barText and barText ~= "" then
+            mod._updatingRecipient = true
+            SendMailNameEditBox:SetText(barText)
+            mod._updatingRecipient = nil
+        end
+    end
     sendDest = SendMailNameEditBox:GetText()
     local cod = SendMailCODButton:GetChecked() and MoneyInputFrame_GetCopper(SendMailMoney)
     if GetSendMailItem(1) or sendCache and next(sendCache) then
@@ -1069,6 +1089,12 @@ end
 function mod:SendMailNameEditBox_OnTextChanged(frame, a1)
     sendDest = cacheLock and sendDest or SendMailNameEditBox:GetText()
     sendCacheBuild(SendMailNameEditBox:GetText())
+    -- Sync recipient bar if it wasn't the source of the change
+    if not mod._updatingRecipient and mod._recipientBar and mod._recipientBar.editBox and mod._recipientBar.editBox:GetText() ~= SendMailNameEditBox:GetText() then
+        mod._updatingRecipient = true
+        mod._recipientBar.editBox:SetText(SendMailNameEditBox:GetText())
+        mod._updatingRecipient = nil
+    end
     return self.hooks[frame].OnTextChanged(frame, a1)
 end
 
@@ -1602,6 +1628,10 @@ end
 function mod:HideSendQueueGUI()
     _QTipClose(BulkMail.sendQueueTooltip)
     BulkMail.sendQueueTooltip = nil
+    if mod._recipientBar then
+        mod._recipientBar:Hide()
+        mod._recipientBar:SetParent(nil)
+    end
 end
 
 function mod:RefreshSendQueueGUI()
@@ -1609,6 +1639,89 @@ function mod:RefreshSendQueueGUI()
         mod:ShowSendQueueGUI()
     end
     updateSendCost()
+end
+
+local function _createOrAttachRecipientBar(tooltip)
+    local bar = mod._recipientBar
+    if not bar then
+        local template = (TooltipBackdropTemplateMixin and "TooltipBackdropTemplate") or (BackdropTemplateMixin and "BackdropTemplate")
+        bar = CreateFrame("Frame", nil, UIParent, template)
+        bar:SetHeight(30)
+
+        if TooltipBackdropTemplateMixin and GameTooltip.layoutType then
+            bar.layoutType = GameTooltip.layoutType
+            bar.NineSlice:SetCenterColor(GameTooltip.NineSlice:GetCenterColor())
+            bar.NineSlice:SetBorderColor(GameTooltip.NineSlice:GetBorderColor())
+        elseif bar.SetBackdrop then
+            local backdrop = GameTooltip:GetBackdrop()
+            bar:SetBackdrop(backdrop)
+            if backdrop then
+                bar:SetBackdropColor(GameTooltip:GetBackdropColor())
+                bar:SetBackdropBorderColor(GameTooltip:GetBackdropBorderColor())
+            end
+        end
+
+        local label = bar:CreateFontString(nil, nil, "GameFontNormal")
+        label:SetTextColor(1, 210/255, 0, 1)
+        label:SetText(L["To"]..": ")
+        label:SetPoint("LEFT", bar, "LEFT", 8, 0)
+
+        local editBox = CreateFrame("EditBox", "BulkMailRecipientEditBox", bar, "AutoCompleteEditBoxTemplate,InputBoxTemplate")
+        editBox:SetHeight(20)
+        editBox:SetPoint("LEFT", label, "RIGHT", 5, 0)
+        editBox:SetPoint("RIGHT", bar, "RIGHT", -8, 0)
+        editBox:SetAutoFocus(false)
+        AutoCompleteEditBox_SetAutoCompleteSource(editBox, GetAutoCompleteResults, AUTOCOMPLETE_LIST.MAIL.include, AUTOCOMPLETE_LIST.MAIL.exclude)
+        editBox.addHighlightedText = true
+        editBox.autoCompleteContext = "mail"
+
+        editBox:SetScript("OnTextChanged", function(self, userInput)
+            AutoCompleteEditBox_OnTextChanged(self, userInput)
+            if mod._updatingRecipient then return end
+            sendDest = self:GetText()
+            sendCacheBuild(sendDest)
+        end)
+        editBox:SetScript("OnTabPressed", function(self)
+            AutoCompleteEditBox_OnTabPressed(self)
+        end)
+        editBox:SetScript("OnEditFocusLost", function(self)
+            AutoCompleteEditBox_OnEditFocusLost(self)
+            mod._updatingRecipient = true
+            SendMailNameEditBox:SetText(self:GetText())
+            mod._updatingRecipient = nil
+        end)
+        editBox:SetScript("OnEnterPressed", function(self)
+            if not AutoCompleteEditBox_OnEnterPressed(self) then
+                mod._updatingRecipient = true
+                SendMailNameEditBox:SetText(self:GetText())
+                mod._updatingRecipient = nil
+                self:ClearFocus()
+            end
+        end)
+        editBox:SetScript("OnEscapePressed", function(self)
+            if not AutoCompleteEditBox_OnEscapePressed(self) then
+                self:ClearFocus()
+            end
+        end)
+
+        bar.editBox = editBox
+        bar:EnableMouse(true)
+        mod._recipientBar = bar
+    end
+
+    -- Sync current recipient into the edit box (but don't disturb active typing)
+    if not bar.editBox:HasFocus() then
+        local currentDest = sendDest or SendMailNameEditBox:GetText() or ""
+        mod._updatingRecipient = true
+        bar.editBox:SetText(currentDest)
+        mod._updatingRecipient = nil
+    end
+
+    bar:ClearAllPoints()
+    bar:SetParent(tooltip)
+    bar:SetPoint("TOPLEFT", tooltip, "BOTTOMLEFT", 0, 4)
+    bar:SetPoint("TOPRIGHT", tooltip, "BOTTOMRIGHT", 0, 4)
+    bar:Show()
 end
 
 function mod:ShowSendQueueGUI()
@@ -1730,6 +1843,7 @@ function mod:ShowSendQueueGUI()
     y = tooltip:AddLine(L["Alt-Left Click item to bulk add/remove."])
     tooltip:SetFrameStrata("FULLSCREEN")
     tooltip:SetClampedToScreen(true)
+    _createOrAttachRecipientBar(tooltip)
     tooltip:Show()
     -- UpdateScrolling needs valid bounds, so call after Show()
     if tooltip:GetTop() then
