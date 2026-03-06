@@ -910,6 +910,9 @@ function mod:MAIL_SHOW()
         self:RawHookScript(MailFrameTab1, 'OnClick', 'MailFrameTab1_OnClick')
         self:RawHookScript(MailFrameTab2, 'OnClick', 'MailFrameTab2_OnClick')
         self:RawHookScript(SendMailNameEditBox, 'OnTextChanged', 'SendMailNameEditBox_OnTextChanged')
+        self:RegisterEvent('MAIL_SEND_SUCCESS')
+        self:RegisterEvent('SECURE_TRANSFER_CANCEL')
+        self:RegisterEvent('MAIL_FAILED')
 
         SendMailMailButton:Enable()
         
@@ -968,11 +971,38 @@ function mod:MAIL_CLOSED()
         self:UnhookAll()
         sendCacheCleanup()
         self:HideSendQueueGUI()
-        self:CancelTimer(self.BM_SendLoop)
+        self:StopBulkSend()
     end
 end
 
 BulkMail.PLAYER_ENTERING_WORLD = BulkMail.MAIL_CLOSED  -- MAIL_CLOSED doesn't get called if, for example, the player accepts a port with the mail window open
+
+function mod:MAIL_SEND_SUCCESS()
+    if self._sendingBulk then
+        self:RefreshSendQueueGUI()
+        -- Small delay to let WoW process the sent mail before loading the next one
+        self:ScheduleTimer("Send", 0.1, self._sendCOD)
+    end
+end
+
+function mod:SECURE_TRANSFER_CANCEL()
+    if self._sendingBulk then
+        self:StopBulkSend()
+        SendMailNameEditBox:SetText('')
+        sendDest = ''
+        sendCacheCleanup()
+        self:Print(L["Send cancelled."])
+    end
+end
+
+function mod:MAIL_FAILED()
+    if self._sendingBulk then
+        self:StopBulkSend()
+        SendMailNameEditBox:SetText('')
+        sendDest = ''
+        sendCacheCleanup()
+    end
+end
 
 --[[----------------------------------------------------------------------------
 Hooks
@@ -1052,10 +1082,11 @@ function mod:SendMailMailButton_OnClick(frame, a1)
         end
     end
     sendDest = SendMailNameEditBox:GetText()
-    local cod = SendMailCODButton:GetChecked() and MoneyInputFrame_GetCopper(SendMailMoney)
+    self._sendCOD = SendMailCODButton:GetChecked() and MoneyInputFrame_GetCopper(SendMailMoney)
     if GetSendMailItem(1) or sendCache and next(sendCache) then
         organizeSendCache()
-        self.sendLoopTimer = self:ScheduleRepeatingTimer("Send", 0.1, cod)
+        self._sendingBulk = true
+        self:Send(self._sendCOD)
     else
         if SendMailSendMoneyButton:GetChecked() and MoneyInputFrame_GetCopper(SendMailMoney) and SendMailSubjectEditBox:GetText() == '' and (not sendCache or not next(sendCache)) then
             SendMailSubjectEditBox:SetText(abacus:FormatMoneyFull(MoneyInputFrame_GetCopper(SendMailMoney)))
@@ -1125,7 +1156,6 @@ end
 -- destinations from BulkMail's send queue and sends them.
 local suffix = SUFFIX_CHAR  -- for ensuring subject uniqueness to help BMI's "selected item" features
 function mod:Send(cod)
-    if StaticPopup_Visible('SEND_MONEY') then return end
     if GetSendMailItem(1) then
         SendMailNameEditBox:SetText((sendDest ~= '' and sendDest or rulesCacheDest(GetSendMailItemLink(1)) or self.db.char.defaultDestination) or '')
         if SendMailNameEditBox:GetText() ~= '' then
@@ -1135,9 +1165,7 @@ function mod:Send(cod)
         elseif not self.db.char.defaultDestination then
             self:Print(L["No default destination set."])
             self:Print(L["Enter a name in the To: field or set a default destination with |cff00ffaa/bulkmail defaultdest|r."])
-            cacheLock = false
-            self:CancelTimer(self.sendLoopTimer, true)
-            self.sendLoopTimer = nil
+            self:StopBulkSend()
             return
         end
         return
@@ -1157,13 +1185,24 @@ function mod:Send(cod)
             SendMailSendMoneyButton:SetChecked(nil)
             MoneyInputFrame_SetCopper(SendMailMoney, cod)
         end
+        -- Items are now in the mail slots; set destination and trigger the actual send
+        sendDest = dest
+        SendMailNameEditBox:SetText(dest)
+        if #suffix > 10 then suffix = SUFFIX_CHAR else suffix = suffix..SUFFIX_CHAR end
+        _G.this = SendMailMailButton
+        return self.hooks[SendMailMailButton].OnClick(SendMailMailButton)
     else
-        self:CancelTimer(self.sendLoopTimer, true)
-        self.sendLoopTimer = nil
         SendMailNameEditBox:SetText('')
         sendDest = ''
+        self._sendingBulk = false
         return sendCacheCleanup()
     end
+end
+
+function mod:StopBulkSend()
+    cacheLock = false
+    self._sendingBulk = false
+    self._sendCOD = nil
 end
 
 -- Send the container slot's item immediately to its autosend destination
@@ -1678,6 +1717,9 @@ local function _createOrAttachRecipientBar(tooltip)
         editBox:SetScript("OnTextChanged", function(self, userInput)
             AutoCompleteEditBox_OnTextChanged(self, userInput)
             if mod._updatingRecipient then return end
+            mod._updatingRecipient = true
+            SendMailNameEditBox:SetText(self:GetText())
+            mod._updatingRecipient = nil
             sendDest = self:GetText()
             sendCacheBuild(sendDest)
         end)

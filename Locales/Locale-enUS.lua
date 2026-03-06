@@ -66,6 +66,7 @@ L["Remove all rules corresponding to a particular destination."] = true
 L["Remove Destination"] = true
 L["Right click to open the config menu."] = true
 L["Send"] = true
+L["Send cancelled."] = true
 L["Set the default recipient of your AutoSend rules"] = true
 L["Sink"] = true
 L["Usage: "] = true
