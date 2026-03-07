@@ -25,6 +25,8 @@
   <Script file="Libs\LibPeriodicTable-3.1-Reputation\LibPeriodicTable-3.1-Reputation.lua"/>
   <Script file="Libs\LibPeriodicTable-3.1-Tradeskill\LibPeriodicTable-3.1-Tradeskill.lua"/>
   <Script file="Libs\LibPeriodicTable-3.1-TradeskillResultMats\LibPeriodicTable-3.1-TradeskillResultMats.lua"/>
+  <Include file="Libs\LibSharedMedia-3.0\lib.xml"/>
+  <Include file="Libs\AceGUI-3.0-SharedMediaWidgets\widget.xml"/>
   <Include file="Libs\LibMagicUtil-1.0\LibMagicUtil-1.0\lib.xml"/>
 
 </Ui>

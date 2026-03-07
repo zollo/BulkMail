@@ -703,12 +703,12 @@ function mod:OnInitialize()
     else
         -- classic
         obsoletes = newHash(
-                LE_ITEM_CLASS_GEM, true,
-                LE_ITEM_CLASS_GLYPH, true,
-                LE_ITEM_CLASS_ITEM_ENHANCEMENT, true,
-                LE_ITEM_CLASS_WOW_TOKEN, true,
-                LE_ITEM_CLASS_BATTLEPET, true,
-                LE_ITEM_CLASS_QUESTITEM, true, -- can't send quest items
+                (LE_ITEM_CLASS_GEM or Enum.ItemClass.Gem), true,
+                (LE_ITEM_CLASS_GLYPH or Enum.ItemClass.Glyph), true,
+                (LE_ITEM_CLASS_ITEM_ENHANCEMENT or Enum.ItemClass.ItemEnhancement), true,
+                (LE_ITEM_CLASS_WOW_TOKEN or Enum.ItemClass.WoWToken), true,
+                (LE_ITEM_CLASS_BATTLEPET or Enum.ItemClass.Battlepet), true,
+                (LE_ITEM_CLASS_QUESTITEM or Enum.ItemClass.Questitem), true, -- can't send quest items
                 10, true,  -- Money
                 14,  true -- Permanent
         )
