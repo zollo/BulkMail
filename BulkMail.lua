@@ -891,6 +891,8 @@ function mod:PLAYER_INTERACTION_MANAGER_FRAME_HIDE(_, type)
 end
 
 function mod:MAIL_SHOW()
+    -- Allow TSM frame detection to re-scan (TSM may create its frame lazily)
+    MagicUtil:ResetTSMFrameCache()
     if not mailIsVisible then
         mailIsVisible = true
         if rulesAltered then rulesCacheBuild() end
