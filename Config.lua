@@ -273,7 +273,6 @@ StaticPopupDialogs['BULKMAIL_ADD_DESTINATION'] = {
         local activeWindow = ChatEdit_GetActiveWindow()
         if activeWindow then
             _G[self:GetName().."EditBox"]:SetText('')
-            activeWindow:Insert('')
         end
     end,
     EditBoxOnEnterPressed = function(self)

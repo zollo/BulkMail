@@ -221,14 +221,14 @@ local function _toggleEditHeader(frame, dest)
 end
 
 local function _namesForItemRule(rule)
-    if type(rule) == "string" then
-        return rule.type, rule.subtype
-    else
+    if type(rule) == "table" then
         local subtype
         if rule.subtype ~= nil then
             subtype = GetItemSubClassInfo(rule.type, rule.subtype)
         end
         return GetItemClassInfo(rule.type), subtype
+    else
+        return rule.type, rule.subtype
     end
 end
 
