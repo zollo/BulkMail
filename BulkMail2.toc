@@ -22,5 +22,15 @@
 
 embeds.xml
 Locales.xml
-BulkMail.lua
+Core.lua
+TablePool.lua
+Compat.lua
+RulesCache.lua
+SendQueue.lua
+Send.lua
+Hooks.lua
+Events.lua
+GUI_SendQueue.lua
+GUI_EditRules.lua
+Config.lua
 

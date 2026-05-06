@@ -1,11 +1,55 @@
-# Addon Description
-Bulk mail sending made really easy. Bulk Mail also offers the unique ability to automatically send emails based on rules you configure. This is very useful and powerful if you have bank alts that for specific resources. With a few clicks you can now send all collected items to the right alt simply by opening the send mail page.
+# BulkMail
 
-Bulk Mail is originally written by hyperactiveChipmunk. NeoTron just took over the addon with his blessing and will work on moving to Ace3 and adding support for LibDataBroker.
-#Bulk Mail v4.0 Beta
-BulkMail v4.0 beta is now available for download. The beta is a complete move to Ace 3, LibQTip, LibDropdown and other modern version of the libraries used. Please report any issues with this version so I can fix it. Right now the Ace2 configuration will be kept around in case you decide to downgrade. Note however that Ace3 configuration will not be downgraded to the Ace2 configuration.
-#Version History Explained
+Bulk mail sending for World of Warcraft, made really easy.
 
-    BulkMail 2 (version 2.x) was the version during Burning Crusade. BulkMail 2 (version 3.x) was the version during Wrath of the Lich King. BulkMail 2 (version 4.x) is the new Ace3 based version. BulkMail 2 v7.x is updated for Legion. 
+BulkMail lets you automatically send items to alts based on configurable rules (item ID, item type, PeriodicTable sets, and global exclusions). Open the mailbox, and matching items are queued for sending automatically. A compact QTip window shows the queue and lets you manage it on the fly.
 
-Since it's rather confusing to have BulkMail 2 v3.0, BulkMail 3 v4.0 or similar, I simplified it to just BulkMail with a version. Typically the major version matches the current expansion (1 = vanilla, 2 = BC, 3 = WotLK, 4 = Cataclysm) although there's no guarantee for this. 
+Originally written by **hyperactiveChipmunk**. Maintained by **NeoTron**.
+
+---
+
+## Module Structure
+
+The addon is organized into focused source files, loaded in order from `BulkMail2.toc`:
+
+| File | Responsibility |
+|---|---|
+| `Core.lua` | Addon object creation, library handle declarations, C_Container / AddOns API compat shims, named color constants, shared state initialization, and small utility functions (`color`, `linkToId`, `_QTipClose`, `_addIndentedCell`) used by multiple modules. |
+| `TablePool.lua` | Lightweight memory pool (`new`, `del`, `newHash`, `newSet`, `deepDel`) that recycles Lua tables to reduce GC pressure. |
+| `Compat.lua` | One-shot migration helpers (`_convertBulkMail2DB`, `_convertAce2ToAce3Realm`) that upgrade old BulkMail 2 / Ace2 saved variables. Called once during `OnInitialize` then discarded. |
+| `RulesCache.lua` | Builds and queries `rulesCache` — the flattened item→destination lookup derived from `autoSendRules`. Exposes `_rulesCacheBuild` and `_rulesCacheDest`. |
+| `SendQueue.lua` | Manages the per-session send cache (`sendCache`). Contains bag iteration, item mailability checks, send-cost updates, and `organizeSendCache`. All send-cache functions are exposed on `mod` for cross-module use. |
+| `Send.lua` | Public sending methods: `mod:Send`, `mod:StopBulkSend`, `mod:QuickSend`, `mod:AddDestination`, `mod:RemoveDestination`. |
+| `Hooks.lua` | All `SecureHook` / `RawHookScript` method implementations — container frame clicks, tab switches, name edit-box changes, and the Send button handler. |
+| `Events.lua` | `MAIL_SHOW`, `MAIL_CLOSED`, `MAIL_SEND_SUCCESS`, `SECURE_TRANSFER_CANCEL`, `MAIL_FAILED`, `PLAYER_INTERACTION_MANAGER_FRAME_HIDE`, `CheckMailFrameChanged`, plus `OnEnable` / `OnDisable`. |
+| `GUI_SendQueue.lua` | The floating send-queue QTip window (`ShowSendQueueGUI`, `HideSendQueueGUI`, `RefreshSendQueueGUI`) and the inline recipient edit bar (`_createOrAttachRecipientBar`). |
+| `GUI_EditRules.lua` | The AutoSend Rules editor QTip window (`OpenEditTooltipGUI`, `RefreshEditTooltipGUI`), rule-list rendering, and the Ace3/PT31/Inventory dropdown menus for adding new rules. |
+| `Config.lua` | `OnInitialize` (AceDB setup, options table, LDB data object, PT31 LoD loading), `OptReg`, `OpenConfigMenu`, `ToggleConfigDialog`, and `StaticPopupDialogs` definitions. |
+
+---
+
+## Usage
+
+- **Open the mailbox** — BulkMail auto-fills the send queue based on your rules.
+- **Alt-Right-Click** an item in your bags to add/remove it from the queue.
+- **Alt-Left-Click** an item to bulk-add/remove all stacks of that item.
+- **Ctrl-Shift-Left-Click** to quick-send a single item immediately.
+- Click the **Edit Destinations** button (or `/bm autosend edit`) to manage rules.
+- The **recipient bar** below the queue lets you type or auto-complete the destination.
+
+## Slash Commands
+
+```
+/bulkmail   (or /bm)
+```
+
+---
+
+## Version History
+
+- **v9.x** — Multi-file module restructure; bug fixes; C_Container compat; TSM integration; recipient bar with auto-complete.
+- **v8.x** — Dragonflight bag API compat (C_Container).
+- **v7.x** — Legion update.
+- **v4.x** — Full Ace3 rewrite (AceDB-3.0, LibQTip-1.0, LibDropdown-1.0).
+- **v3.x** — Wrath of the Lich King (Ace2).
+- **v2.x** — Burning Crusade (Ace2, original BulkMail 2 codebase by hyperactiveChipmunk).
